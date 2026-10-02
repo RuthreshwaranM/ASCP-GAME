@@ -1,0 +1,89 @@
+/* ===== EDIT YOUR COLOURS HERE ===== */
+:root {
+  --orange: #ff6a13;      /* Akasa orange */
+  --purple: #3b1a63;      /* deep dusk purple */
+  --cream:  #fff4e8;      /* text colour */
+  --panel:  rgba(30, 12, 54, 0.82);
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  height: 100%;
+  background: #14081f;
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  color: var(--cream);
+  overflow: hidden;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body { display: flex; align-items: center; justify-content: center; }
+
+/* Game box: keeps the 400x640 ratio and fits any screen */
+#game-wrap {
+  position: relative;
+  height: min(100vh, 160vw);
+  aspect-ratio: 400 / 640;
+  max-width: 100vw;
+  box-shadow: 0 0 40px rgba(255, 106, 19, 0.25);
+}
+
+canvas { width: 100%; height: 100%; display: block; touch-action: none; }
+
+/* Score */
+#score {
+  position: absolute;
+  top: 5%;
+  left: 0; right: 0;
+  text-align: center;
+  font-size: clamp(40px, 11vh, 72px);
+  font-weight: 800;
+  color: var(--cream);
+  text-shadow: 0 3px 0 var(--purple), 0 0 18px rgba(255, 106, 19, 0.6);
+  pointer-events: none;
+  display: none;
+}
+
+/* Menu + game over panels */
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+  text-align: center;
+  padding: 24px;
+  background: var(--panel);
+}
+.hidden { display: none; }
+
+h1 { font-size: clamp(30px, 5.5vh, 44px); color: var(--orange); letter-spacing: 1px; }
+h2 { font-size: clamp(28px, 5vh, 38px); color: var(--orange); }
+p  { line-height: 1.6; opacity: 0.9; }
+small { opacity: 0.8; font-size: 15px; }
+
+button {
+  background: var(--orange);
+  color: #fff;
+  border: none;
+  border-radius: 40px;
+  padding: 14px 48px;
+  font-size: 22px;
+  font-weight: 800;
+  font-family: inherit;
+  cursor: pointer;
+  box-shadow: 0 5px 0 #b33f00;
+  transition: transform 0.08s, box-shadow 0.08s;
+}
+button:active { transform: translateY(4px); box-shadow: 0 1px 0 #b33f00; }
+button:focus-visible { outline: 3px solid var(--cream); outline-offset: 3px; }
+
+.result { display: flex; gap: 36px; }
+.result div { display: flex; flex-direction: column; gap: 4px; }
+.result span { font-size: 14px; opacity: 0.75; }
+.result b { font-size: 40px; }
+
+/* Picture in the game-over popup */
+#overImg { width: 70%; max-height: 32%; object-fit: contain; border-radius: 12px; }

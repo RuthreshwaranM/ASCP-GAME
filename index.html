@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+  <title>Akasa Sky Run</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <div id="game-wrap">
+    <canvas id="game" width="400" height="640"></canvas>
+
+    <!-- Live score while playing -->
+    <div id="score">0</div>
+
+    <!-- Start screen -->
+    <div id="menu" class="overlay">
+      <h1>Akasa Sky Run</h1>
+      <p>Tap, click or press Space to climb.<br>Keep clear of the buildings.</p>
+      <button id="playBtn">Play</button>
+      <small>Best: <span id="bestMenu">0</span></small>
+    </div>
+
+    <!-- Game over screen -->
+    <div id="gameover" class="overlay hidden">
+      <img id="overImg" alt="" style="display:none">
+      <h2>Landed hard</h2>
+      <div class="result">
+        <div><span>Score</span><b id="finalScore">0</b></div>
+        <div><span>Best</span><b id="bestScore">0</b></div>
+      </div>
+      <button id="retryBtn">Fly again</button>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

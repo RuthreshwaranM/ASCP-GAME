@@ -1,0 +1,8 @@
+Put these files in this folder (PNG, same names as below):
+
+akasa-b737.png   Aircraft      ~300 x 110 px   transparent, nose pointing RIGHT (any shape, ratio is kept)
+building.png     Building      160 x 700 px    transparent, roof at the TOP of the picture
+background.png   Background    800 x 1280 px   portrait 5:8 (opaque)
+gameover.png     Popup picture 600 x 400 px    shown above "Landed hard" / score
+
+To rename a file, edit CONFIG at the top of game.js.
