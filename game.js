@@ -9,6 +9,7 @@ const CONFIG = {
   buildingImage:   "images/building.png",    // building, transparent PNG, roof at the TOP of the picture
   backgroundImage: "images/background.png",  // full game background
   gameOverImage:   "images/gameover.png",    // picture shown in the hit popup
+  coinImage:       "images/coin.png",        // collectable coin, transparent PNG
   backgroundScroll: false,                   // true = background slowly moves left (needs a seamless left-right image)
 
   // ---- Aircraft ----
@@ -21,15 +22,25 @@ const CONFIG = {
   flapPower:    -7.2,     // more negative = jumps higher
   maxFallSpeed:  9,
 
-  // ---- Buildings ----
+  // ---- Buildings (difficulty grows slowly with score) ----
   buildingWidth: 78,
-  gap:           175,     // opening between top and bottom building
-  speed:         2.6,     // scroll speed
-  spawnEvery:    95,      // frames between buildings (higher = more space)
-  minTop:        90,      // how high the gap can go
+  spacing:       240,     // distance between buildings (bigger = easier)
+  gapStart:      190,     // opening at the start of the game
+  gapMin:        150,     // smallest opening it ever reaches
+  speedStart:    2.4,     // scroll speed at the start
+  speedMax:      3.8,     // scroll speed it slowly reaches
+  shiftStart:    100,     // how far the next opening can jump up/down at the start
+  shiftMax:      220,     // ... and later in the game
+  rampScore:     40,      // score at which the game reaches full difficulty (bigger = slower rise)
+  moveFrom:      8,       // from this score some buildings start moving up and down
+  moveAmp:       45,      // how far moving openings travel
+  minTop:        90,      // how high the opening can go
   minBottom:     110,     // space kept above the ground
-  speedUpEvery:  5,       // every N points the game gets a bit faster
-  speedUpBy:     0.15,
+
+  // ---- Coins ----
+  coinSize:          34,
+  coinChance:        0.55,  // chance of a coin inside an opening
+  coinBetweenChance: 0.30,  // chance of an extra coin between two buildings
 
   // ---- Colours ----
   skyTop:        "#2a0f4d",
@@ -55,6 +66,7 @@ const overEl    = document.getElementById("gameover");
 const finalEl   = document.getElementById("finalScore");
 const bestEl    = document.getElementById("bestScore");
 const bestMenu  = document.getElementById("bestMenu");
+const finalCoinsEl = document.getElementById("finalCoins");
 
 let best = 0;
 try { best = Number(localStorage.getItem("akasaSkyRunBest")) || 0; } catch (e) {}
@@ -80,6 +92,13 @@ if (CONFIG.backgroundImage) {
   bgImg.src = CONFIG.backgroundImage;
 }
 
+const coinImg = new Image();
+let coinReady = false;
+if (CONFIG.coinImage) {
+  coinImg.onload = () => { coinReady = true; };
+  coinImg.src = CONFIG.coinImage;
+}
+
 // popup picture (shown only if the file exists)
 const overImgEl = document.getElementById("overImg");
 if (CONFIG.gameOverImage) {
@@ -90,6 +109,13 @@ if (CONFIG.gameOverImage) {
 /* ---------------- Game state ---------------- */
 let state = "menu";        // "menu" | "playing" | "over"
 let plane, buildings, frame, score, speed, clouds, groundX;
+let coins, floaters, coinCount, lastCenter;
+
+const lerp = (a, b, t) => a + (b - a) * t;
+const rand = (a, b) => a + Math.random() * (b - a);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+// 0 at the start, 1 at full difficulty - rises smoothly with the score
+const difficulty = () => Math.min(1, score / CONFIG.rampScore);
 
 function resetGame() {
   const ratio = planeReady ? planeImg.height / planeImg.width : 0.35;
@@ -102,9 +128,13 @@ function resetGame() {
     angle: 0
   };
   buildings = [];
+  coins = [];
+  floaters = [];
+  coinCount = 0;
+  lastCenter = null;
   frame = 0;
   score = 0;
-  speed = CONFIG.speed;
+  speed = CONFIG.speedStart;
   groundX = 0;
   scoreEl.textContent = 0;
   if (!clouds) {
@@ -137,6 +167,7 @@ function endGame() {
     try { localStorage.setItem("akasaSkyRunBest", best); } catch (e) {}
   }
   finalEl.textContent = score;
+  finalCoinsEl.textContent = coinCount;
   bestEl.textContent = best;
   bestMenu.textContent = best;
   scoreEl.style.display = "none";
@@ -157,16 +188,39 @@ canvas.addEventListener("pointerdown", (e) => { e.preventDefault(); flap(); });
 
 /* ---------------- Buildings ---------------- */
 function spawnBuilding() {
-  const minGapTop = CONFIG.minTop;
-  const maxGapTop = H - CONFIG.groundHeight - CONFIG.minBottom - CONFIG.gap;
-  const gapTop = minGapTop + Math.random() * (maxGapTop - minGapTop);
-  buildings.push({
-    x: W + 10,
-    gapTop,
-    gapBottom: gapTop + CONFIG.gap,
+  const diff = difficulty();
+  const gap = lerp(CONFIG.gapStart, CONFIG.gapMin, diff) + rand(-6, 6);
+  const minC = CONFIG.minTop + gap / 2;
+  const maxC = H - CONFIG.groundHeight - CONFIG.minBottom - gap / 2;
+
+  // next opening is never too far from the last one, so it is always possible
+  const prev = lastCenter;
+  const shift = lerp(CONFIG.shiftStart, CONFIG.shiftMax, diff);
+  const center = prev === null ? (minC + maxC) / 2 : clamp(prev + rand(-shift, shift), minC, maxC);
+  lastCenter = center;
+
+  // from a certain score, some openings slide up and down
+  const movingChance = score >= CONFIG.moveFrom ? Math.min(0.5, 0.2 + (score - CONFIG.moveFrom) * 0.015) : 0;
+  let amp = Math.random() < movingChance ? rand(15, 15 + (CONFIG.moveAmp - 15) * diff + 10) : 0;
+  amp = Math.min(amp, center - minC, maxC - center);
+  if (amp < 10) amp = 0;
+
+  const b = {
+    x: W + (buildings.length ? 10 : 120),
+    base: center, center, gap, amp, phase: rand(0, 6.28),
+    gapTop: center - gap / 2, gapBottom: center + gap / 2,
+    space: CONFIG.spacing * lerp(1, 0.92, diff) + rand(-15, 15),
     color: CONFIG.buildingColors[Math.floor(Math.random() * CONFIG.buildingColors.length)],
     scored: false
-  });
+  };
+  buildings.push(b);
+
+  // coin inside the opening
+  if (Math.random() < CONFIG.coinChance) coins.push({ b, off: rand(-gap * 0.2, gap * 0.2), x: b.x, y: center, ph: rand(0, 6) });
+  // coin halfway between the last opening and this one (always reachable)
+  if (prev !== null && Math.random() < CONFIG.coinBetweenChance) {
+    coins.push({ b: null, x: b.x - (CONFIG.spacing / 2), y: (prev + center) / 2, ph: rand(0, 6) });
+  }
 }
 
 /* ---------------- Update ---------------- */
@@ -186,10 +240,28 @@ function update() {
   plane.y += plane.vy;
   plane.angle = Math.max(-0.45, Math.min(0.7, plane.vy * 0.07));
 
+  // difficulty rises slowly as the score goes up
+  speed += (lerp(CONFIG.speedStart, CONFIG.speedMax, difficulty()) - speed) * 0.02;
+
   // buildings
-  if (frame % CONFIG.spawnEvery === 1) spawnBuilding();
-  buildings.forEach((b) => { b.x -= speed; });
+  const lastB = buildings[buildings.length - 1];
+  if (!lastB || lastB.x <= W - lastB.space) spawnBuilding();
+  buildings.forEach((b) => {
+    b.x -= speed;
+    b.center = b.base + Math.sin(frame * 0.035 + b.phase) * b.amp;   // moving openings
+    b.gapTop = b.center - b.gap / 2;
+    b.gapBottom = b.center + b.gap / 2;
+  });
   buildings = buildings.filter((b) => b.x + CONFIG.buildingWidth > -10);
+
+  // coins follow their opening or scroll with the world
+  coins.forEach((c) => {
+    if (c.b) { c.x = c.b.x + CONFIG.buildingWidth / 2; c.y = c.b.center + c.off; }
+    else c.x -= speed;
+  });
+  coins = coins.filter((c) => c.x > -40);
+  floaters.forEach((f) => { f.y -= 1; f.t--; });
+  floaters = floaters.filter((f) => f.t > 0);
 
   // hitbox (a bit smaller than the picture so it feels fair)
   const sx = plane.w * CONFIG.hitboxShrink * 0.5;
@@ -198,6 +270,17 @@ function update() {
     l: plane.x + sx, r: plane.x + plane.w - sx,
     t: plane.y + sy, b: plane.y + plane.h - sy
   };
+
+  // collect coins
+  for (let i = coins.length - 1; i >= 0; i--) {
+    const c = coins[i];
+    const cx = clamp(c.x, hit.l, hit.r), cy = clamp(c.y, hit.t, hit.b);
+    if (Math.hypot(c.x - cx, c.y - cy) < CONFIG.coinSize / 2 + 6) {
+      coins.splice(i, 1);
+      coinCount++;
+      floaters.push({ x: c.x, y: c.y, t: 35 });
+    }
+  }
 
   // ground and ceiling
   if (hit.b >= H - CONFIG.groundHeight) return endGame();
@@ -212,7 +295,6 @@ function update() {
       b.scored = true;
       score++;
       scoreEl.textContent = score;
-      if (score % CONFIG.speedUpEvery === 0) speed += CONFIG.speedUpBy;
     }
   }
 }
@@ -300,6 +382,31 @@ function drawBuildings() {
   });
 }
 
+function drawCoins() {
+  const s = CONFIG.coinSize;
+  coins.forEach((c) => {
+    const spin = Math.max(0.35, Math.abs(Math.cos(frame * 0.06 + c.ph)));   // little spinning effect
+    if (coinReady) {
+      const h = s * coinImg.height / coinImg.width;
+      ctx.drawImage(coinImg, c.x - s * spin / 2, c.y - h / 2, s * spin, h);
+    } else {
+      ctx.fillStyle = "#ffcf33";
+      ctx.beginPath(); ctx.ellipse(c.x, c.y, s / 2 * spin, s / 2, 0, 0, Math.PI * 2); ctx.fill();
+      ctx.strokeStyle = "#c98a00"; ctx.lineWidth = 3; ctx.stroke();
+    }
+  });
+  ctx.font = "800 20px sans-serif"; ctx.textAlign = "center"; ctx.fillStyle = "#ffd84a";
+  floaters.forEach((f) => { ctx.globalAlpha = f.t / 35; ctx.fillText("+1", f.x, f.y); ctx.globalAlpha = 1; });
+}
+
+function drawCoinCounter() {
+  const s = 26;
+  if (coinReady) ctx.drawImage(coinImg, 16, 16, s, s * coinImg.height / coinImg.width);
+  else { ctx.fillStyle = "#ffcf33"; ctx.beginPath(); ctx.arc(16 + s / 2, 16 + s / 2, s / 2, 0, Math.PI * 2); ctx.fill(); }
+  ctx.font = "800 24px sans-serif"; ctx.textAlign = "left"; ctx.fillStyle = "#fff4e8";
+  ctx.fillText("x " + coinCount, 16 + s + 8, 38);
+}
+
 function drawGround() {
   const y = H - CONFIG.groundHeight;
   ctx.fillStyle = CONFIG.groundColor;
@@ -350,8 +457,10 @@ function loop(t) {
 
   drawSky();
   if (buildings) drawBuildings();
+  if (coins) drawCoins();
   drawGround();
   drawPlane();
+  if (state === "playing") drawCoinCounter();
   requestAnimationFrame(loop);
 }
 
