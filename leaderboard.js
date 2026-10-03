@@ -1,6 +1,5 @@
 /* =====================================================
    LEADERBOARD - pilot name + online scores (Supabase)
-   Paste your two keys below.
    ===================================================== */
 const LB_CONFIG = {
   url: "https://fvyzlptcdzdtcwxezhau.supabase.co",
@@ -16,6 +15,7 @@ const Leaderboard = (() => {
   const titleOf = (rank) => LB_CONFIG.titles[rank - 1] || "";
 
   let name = "", pid = "", pendingStart = false;
+  let submitted = false;   // makes sure each crash is saved only once
   try {
     name = localStorage.getItem("akasaPlayerName") || "";
     pid = localStorage.getItem("akasaPlayerId") || "";
@@ -33,16 +33,25 @@ const Leaderboard = (() => {
     return h;
   }
 
+  // returns { ok: true } or { ok: false, why: "reason" }
   async function send(score, coins) {
-    if (!online() || !name) return false;
+    if (!online()) return { ok: false, why: "no keys" };
+    if (!name) return { ok: false, why: "no name" };
     try {
       const r = await fetch(LB_CONFIG.url + "/rest/v1/rpc/submit_score", {
         method: "POST",
         headers: headers(),
         body: JSON.stringify({ p_id: pid, p_name: name, p_score: score, p_coins: coins })
       });
-      return r.ok;
-    } catch (e) { return false; }
+      if (r.ok) return { ok: true };
+      let msg = "";
+      try { msg = await r.text(); } catch (e) {}
+      console.error("Leaderboard save failed:", r.status, msg);
+      return { ok: false, why: "HTTP " + r.status };
+    } catch (e) {
+      console.error("Leaderboard save error:", e);
+      return { ok: false, why: "network error" };
+    }
   }
 
   async function fetchTop() {
@@ -106,15 +115,20 @@ const Leaderboard = (() => {
 
   /* ---------- after the aircraft crashes ---------- */
   async function onGameOver(score, coins) {
+    if (submitted) return;          // already saved for this crash
+    submitted = true;
+
     const rankEl = $("rankLine"), topEl = $("topLine");
     topEl.textContent = "";
     if (!online()) { rankEl.textContent = ""; return; }
     rankEl.textContent = "Saving your score...";
 
-    const saved = await send(score, coins);
+    // also uploads the best score kept on this device (it can only ever go up online)
+    const localBest = Number($("bestScore").textContent) || 0;
+    const res = await send(Math.max(score, localBest), coins);
+
     const rows = await fetchTop();
     if (!rows) { rankEl.textContent = "Leaderboard offline - score not saved"; return; }
-    if (!saved) topEl.textContent = "Could not save this score";
 
     const me = rows.findIndex((p) => p.player_id === pid);
     if (me >= 0) {
@@ -123,8 +137,19 @@ const Leaderboard = (() => {
     } else {
       rankEl.textContent = "Keep flying to reach the top 50!";
     }
-    if (rows[0] && saved) topEl.textContent = "Top pilot: " + rows[0].name + " - " + rows[0].best_score;
+
+    if (!res.ok) topEl.textContent = "Could not save score (" + res.why + ")";
+    else if (rows[0]) topEl.textContent = "Top pilot: " + rows[0].name + " - " + rows[0].best_score;
   }
+
+  // Safety net: if game.js does not call onGameOver, we notice the game over screen ourselves
+  const overBox = $("gameover");
+  new MutationObserver(() => {
+    if (overBox.classList.contains("hidden")) { submitted = false; return; }
+    if (!submitted) {
+      onGameOver(Number($("finalScore").textContent) || 0, Number($("finalCoins").textContent) || 0);
+    }
+  }).observe(overBox, { attributes: true, attributeFilter: ["class"] });
 
   /* ---------- name box ---------- */
   function askName(startAfter) {
