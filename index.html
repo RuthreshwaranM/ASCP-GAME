@@ -18,7 +18,10 @@
     <div id="menu" class="overlay">
       <h1>Akasa Sky Run</h1>
       <p>Tap, click or press Space to climb.<br>Keep clear of the buildings.</p>
+      <div class="pilot">Pilot: <b id="pilotName">-</b>
+        <button id="editNameBtn" class="small-btn">Edit name</button></div>
       <button id="playBtn">Play</button>
+      <button id="boardBtn" class="ghost-btn">Leaderboard</button>
       <small>Best: <span id="bestMenu">0</span></small>
     </div>
 
@@ -31,10 +34,31 @@
         <div><span>Coins</span><b id="finalCoins">0</b></div>
         <div><span>Best</span><b id="bestScore">0</b></div>
       </div>
+      <div id="rankLine" class="rankLine"></div>
+      <div id="topLine" class="topLine"></div>
       <button id="retryBtn">Fly again</button>
+      <button id="boardBtn2" class="ghost-btn">Leaderboard</button>
+    </div>
+
+    <!-- Name box (first time, and when editing) -->
+    <div id="nameBox" class="overlay hidden">
+      <h2>Enter your pilot name</h2>
+      <p>This name shows on the leaderboard.<br>You can change it later.</p>
+      <input id="nameInput" type="text" maxlength="20" placeholder="Your name" autocomplete="off">
+      <div id="nameErr" class="err"></div>
+      <button id="nameSave">Save</button>
+      <button id="nameCancel" class="ghost-btn">Cancel</button>
+    </div>
+
+    <!-- Leaderboard -->
+    <div id="board" class="overlay hidden">
+      <h2>Leaderboard</h2>
+      <div id="boardList"></div>
+      <button id="boardClose">Close</button>
     </div>
   </div>
 
+  <script src="leaderboard.js"></script>
   <script src="game.js"></script>
 </body>
 </html>

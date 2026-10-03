@@ -87,3 +87,33 @@ button:focus-visible { outline: 3px solid var(--cream); outline-offset: 3px; }
 
 /* Picture in the game-over popup */
 #overImg { width: 70%; max-height: 32%; object-fit: contain; border-radius: 12px; }
+
+/* ===== Leaderboard + name box ===== */
+.ghost-btn { background: transparent; color: var(--cream); border: 2px solid var(--orange);
+  box-shadow: none; font-size: 18px; padding: 8px 28px; }
+.small-btn { font-size: 14px; padding: 4px 14px; box-shadow: none; }
+.pilot { font-size: 18px; opacity: .95; }
+.pilot b { color: var(--orange); }
+
+input#nameInput { width: 80%; max-width: 280px; padding: 12px 16px; border-radius: 12px;
+  border: 2px solid var(--orange); background: rgba(255,255,255,.08); color: var(--cream);
+  font-size: 20px; text-align: center; font-family: inherit; }
+input#nameInput:focus { outline: 3px solid var(--cream); }
+.err { color: #ff8a8a; min-height: 18px; font-size: 14px; }
+
+.rankLine { font-size: 20px; font-weight: 800; color: var(--orange); min-height: 24px; }
+.topLine { font-size: 14px; opacity: .85; min-height: 18px; }
+
+#boardList { width: 92%; max-height: 62%; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; }
+.row { display: grid; grid-template-columns: 38px 1fr auto auto; align-items: center; gap: 8px;
+  padding: 8px 10px; border-radius: 10px; background: rgba(255,255,255,.07); text-align: left; font-size: 15px; }
+.row.me { outline: 2px solid var(--orange); background: rgba(255,106,19,.18); }
+.row .rk { font-weight: 800; opacity: .85; }
+.row .nm { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .tt { display: block; font-size: 12px; font-weight: 800; }
+.row .sc { font-weight: 800; font-size: 18px; }
+.row .cn { font-size: 12px; opacity: .8; }
+.row.t1 .tt, .row.t1 .rk { color: #ffd24a; }   /* Commander */
+.row.t2 .tt, .row.t2 .rk { color: #d5dbe5; }   /* Captain */
+.row.t3 .tt, .row.t3 .rk { color: #e0a070; }   /* First Officer */
+.note { opacity: .8; font-size: 14px; padding: 10px; text-align: center; }

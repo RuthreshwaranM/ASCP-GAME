@@ -152,6 +152,7 @@ function flap() {
 }
 
 function startGame() {
+  if (window.Leaderboard && !Leaderboard.hasName()) { Leaderboard.askName(true); return; }
   resetGame();
   menuEl.classList.add("hidden");
   overEl.classList.add("hidden");
@@ -172,12 +173,14 @@ function endGame() {
   bestMenu.textContent = best;
   scoreEl.style.display = "none";
   overEl.classList.remove("hidden");
+  if (window.Leaderboard) Leaderboard.onGameOver(score, coinCount);
 }
 
 document.getElementById("playBtn").addEventListener("click", startGame);
 document.getElementById("retryBtn").addEventListener("click", startGame);
 
 window.addEventListener("keydown", (e) => {
+  if (e.target && e.target.tagName === "INPUT") return;
   if (e.code === "Space" || e.code === "ArrowUp") {
     e.preventDefault();
     if (state === "playing") flap();
