@@ -15,6 +15,9 @@ const CONFIG = {
   // ---- Audio (put files inside the "audio" folder) ----
   flapSound: "audio/flap.mp3",   // played every time the plane climbs
   hitSound:  "audio/hit.mp3",    // played once when the plane crashes
+  flapVolume: 1.0,               // 0 to 1  (1 = loudest the browser allows)
+  hitVolume:  1.0,               // 0 to 1
+  minSoundLength: 0.08,          // files shorter than this (seconds) are treated as broken -> built-in beep is used
 
   // ---- Aircraft ----
   planeWidth:    90,      // size on screen (height follows the image shape)
@@ -110,22 +113,123 @@ if (CONFIG.gameOverImage) {
   overImgEl.src = CONFIG.gameOverImage;
 }
 
-/* ---------------- Audio ---------------- */
-const flapSound = new Audio(CONFIG.flapSound);
-const hitSound  = new Audio(CONFIG.hitSound);
-flapSound.volume = 0.6;
-hitSound.volume  = 0.7;
-flapSound.preload = "auto";
-hitSound.preload  = "auto";
-flapSound.load();
-hitSound.load();
+/* ---------------- Audio ----------------
+   How it works (and why the old version was silent):
+   - Browsers only allow sound after the player taps/clicks/presses a key.
+     We "unlock" audio on the very first interaction.
+   - Each sound uses a small pool of Audio objects, so rapid flaps never cut each other off.
+   - If a sound file is missing, fails to load, or is too short to hear (under 0.08 s),
+     a built-in synthesized beep is played instead - so you always hear something.
+   - Open the browser console (F12) to see a message if a file could not be loaded.
+------------------------------------------------ */
+const SFX = (() => {
+  const POOL = 4;
+  const AC = window.AudioContext || window.webkitAudioContext;
+  let actx = null;
+  let unlocked = false;
 
-function playSound(audio) {
-  try {
-    audio.currentTime = 0;          // lets it replay instantly even if still finishing
-    audio.play().catch(() => {});   // ignore if the browser blocks autoplay
-  } catch (e) {}
-}
+  const sounds = {
+    flap: { src: CONFIG.flapSound, vol: CONFIG.flapVolume, pool: [], i: 0, broken: false },
+    hit:  { src: CONFIG.hitSound,  vol: CONFIG.hitVolume,  pool: [], i: 0, broken: false }
+  };
+
+  function load(name) {
+    const s = sounds[name];
+    if (!s.src) { s.broken = true; return; }
+    for (let k = 0; k < POOL; k++) {
+      const a = new Audio();
+      a.preload = "auto";
+      a.volume = s.vol;
+      a.addEventListener("error", () => {
+        if (!s.broken) console.warn("[Sound] Could not load '" + s.src + "' - using built-in beep instead. Check the file name and the audio folder.");
+        s.broken = true;
+      });
+      a.addEventListener("loadedmetadata", () => {
+        if (isFinite(a.duration) && a.duration < CONFIG.minSoundLength) {
+          if (!s.broken) console.warn("[Sound] '" + s.src + "' is only " + a.duration.toFixed(3) + "s long - too short to hear. Using built-in beep instead.");
+          s.broken = true;
+        }
+      });
+      a.src = s.src;
+      a.load();
+      s.pool.push(a);
+    }
+  }
+  load("flap");
+  load("hit");
+
+  function getCtx() {
+    if (!AC) return null;
+    if (!actx) { try { actx = new AC(); } catch (e) { return null; } }
+    if (actx.state === "suspended") actx.resume().catch(() => {});
+    return actx;
+  }
+
+  // built-in fallback sounds (no files needed)
+  function synth(name) {
+    const c = getCtx();
+    if (!c) return;
+    const t = c.currentTime;
+    const g = c.createGain();
+    g.connect(c.destination);
+    const o = c.createOscillator();
+    o.connect(g);
+    if (name === "flap") {
+      o.type = "triangle";
+      o.frequency.setValueAtTime(380, t);
+      o.frequency.exponentialRampToValueAtTime(900, t + 0.12);
+      g.gain.setValueAtTime(0.0001, t);
+      g.gain.exponentialRampToValueAtTime(0.6, t + 0.01);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.18);
+      o.start(t); o.stop(t + 0.2);
+    } else {
+      o.type = "sawtooth";
+      o.frequency.setValueAtTime(220, t);
+      o.frequency.exponentialRampToValueAtTime(40, t + 0.4);
+      g.gain.setValueAtTime(0.7, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.45);
+      o.start(t); o.stop(t + 0.5);
+    }
+  }
+
+  // call on the first tap / click / key so the browser allows sound
+  function unlock() {
+    if (unlocked) return;
+    unlocked = true;
+    getCtx();
+    // "touch" each audio object once while silent, so later play() calls are allowed
+    Object.values(sounds).forEach((s) => s.pool.forEach((a) => {
+      const v = a.volume;
+      a.volume = 0;
+      const p = a.play();
+      if (p && p.then) p.then(() => { a.pause(); a.currentTime = 0; a.volume = v; }).catch(() => { a.volume = v; });
+      else { a.pause(); a.volume = v; }
+    }));
+  }
+  ["pointerdown", "touchstart", "mousedown", "keydown", "click"].forEach((ev) =>
+    window.addEventListener(ev, unlock, { passive: true })
+  );
+
+  function play(name) {
+    const s = sounds[name];
+    if (s.broken || !s.pool.length) { synth(name); return; }
+    const a = s.pool[s.i];
+    s.i = (s.i + 1) % s.pool.length;
+    try {
+      a.currentTime = 0;
+      a.volume = s.vol;
+      const p = a.play();
+      if (p && p.catch) p.catch((err) => {
+        console.warn("[Sound] play() was blocked:", err && err.name);
+        synth(name);
+      });
+    } catch (e) { synth(name); }
+  }
+
+  return { play, unlock };
+})();
+
+function playSound(name) { SFX.play(name); }
 
 /* ---------------- Game state ---------------- */
 let state = "menu";        // "menu" | "playing" | "over"
@@ -171,11 +275,12 @@ function resetGame() {
 function flap() {
   if (state === "playing") {
     plane.vy = CONFIG.flapPower;
-    playSound(flapSound);
+    playSound("flap");
   }
 }
 
 function startGame() {
+  SFX.unlock();
   if (window.Leaderboard && !Leaderboard.hasName()) { Leaderboard.askName(true); return; }
   resetGame();
   menuEl.classList.add("hidden");
@@ -187,7 +292,7 @@ function startGame() {
 
 function endGame() {
   state = "over";
-  playSound(hitSound);
+  playSound("hit");
   if (score > best) {
     best = score;
     try { localStorage.setItem("akasaSkyRunBest", best); } catch (e) {}
