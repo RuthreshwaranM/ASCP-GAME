@@ -12,6 +12,10 @@ const CONFIG = {
   coinImage:       "images/coin.png",        // collectable coin, transparent PNG
   backgroundScroll: false,                   // true = background slowly moves left (needs a seamless left-right image)
 
+  // ---- Audio (put files inside the "audio" folder) ----
+  flapSound: "audio/flap.mp3",   // played every time the plane climbs
+  hitSound:  "audio/hit.mp3",    // played once when the plane crashes
+
   // ---- Aircraft ----
   planeWidth:    90,      // size on screen (height follows the image shape)
   planeX:        90,      // how far from the left edge
@@ -106,6 +110,19 @@ if (CONFIG.gameOverImage) {
   overImgEl.src = CONFIG.gameOverImage;
 }
 
+/* ---------------- Audio ---------------- */
+const flapSound = new Audio(CONFIG.flapSound);
+const hitSound  = new Audio(CONFIG.hitSound);
+flapSound.volume = 0.6;
+hitSound.volume  = 0.7;
+
+function playSound(audio) {
+  try {
+    audio.currentTime = 0;          // lets it replay instantly even if still finishing
+    audio.play().catch(() => {});   // ignore if the browser blocks autoplay
+  } catch (e) {}
+}
+
 /* ---------------- Game state ---------------- */
 let state = "menu";        // "menu" | "playing" | "over"
 let plane, buildings, frame, score, speed, clouds, groundX;
@@ -148,7 +165,10 @@ function resetGame() {
 
 /* ---------------- Controls ---------------- */
 function flap() {
-  if (state === "playing") plane.vy = CONFIG.flapPower;
+  if (state === "playing") {
+    plane.vy = CONFIG.flapPower;
+    playSound(flapSound);
+  }
 }
 
 function startGame() {
@@ -163,6 +183,7 @@ function startGame() {
 
 function endGame() {
   state = "over";
+  playSound(hitSound);
   if (score > best) {
     best = score;
     try { localStorage.setItem("akasaSkyRunBest", best); } catch (e) {}
