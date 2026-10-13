@@ -115,6 +115,10 @@ const flapSound = new Audio(CONFIG.flapSound);
 const hitSound  = new Audio(CONFIG.hitSound);
 flapSound.volume = 0.6;
 hitSound.volume  = 0.7;
+flapSound.preload = "auto";
+hitSound.preload  = "auto";
+flapSound.load();
+hitSound.load();
 
 function playSound(audio) {
   try {
